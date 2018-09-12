@@ -88,7 +88,7 @@ else: Interp = subprocess.check_output(["which",interp]); Interp = Interp.strip(
 
 # prepare wrapper script
 jjs = "/apps/slurm_etc/logs"
-jjs = os.path.join(jjs,"BqsubJobStorage")
+jjs = os.path.join(jjs,os.getenv("USER"))
 if not os.path.isdir(jjs): os.mkdir(jjs)
 wrapper=os.path.join(jjs,name+".sh")
 output=os.path.join(jjs,name+".log")

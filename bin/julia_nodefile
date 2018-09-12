@@ -16,7 +16,7 @@ if len(nodes) < 1:
     print "             use salloc first to allocate nodes"
     sys.exit(1)
 tmpdir = "/apps/slurm_etc/tmp"
-tmpdir = os.path.join(tmpdir,'machinefile4julia')
+tmpdir = os.path.join(tmpdir,os.getenv("USER"))
 if not os.path.isdir(tmpdir): os.mkdir(tmpdir)
 
 # get short nodelist
