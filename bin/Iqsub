@@ -1,0 +1,77 @@
+#!/usr/bin/env python2.7
+
+DESCRIPTION = '''
+Iqsub:
+    Python wrapper to open resoures for interactive jobs
+
+SYNOPSIS
+    Iqsub [-p partition_name] [-J job_name] [-D init_dir] hours nodes ppn
+
+ARGUMENTS
+    hours : hours (float is OK)
+    nodes : 1 or more
+    ppn : processor cores per node
+
+OPTIONS
+    -p : partition name (dafaults to debug)
+    -D : initial directory (defaults to current)
+    -J : name the job (max 15 char, default is time-stamped "I%y%m%d-%H%M%S")
+
+EXAMPLE
+    Iqsub 1.5 2 2 # base syntax
+    Iqsub -D $HOME 1.5 2 2 # start session in home directory
+
+'''
+
+# imports
+import sys
+import os
+import getopt
+import time
+
+# defaults
+hours=1
+nodes=1
+ppn=1
+partition='debug'
+verbose=False
+idir=os.getcwd()
+name=time.strftime("I%y%m%d-%H%M%S")
+
+# get options and arguments
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "p:D:J:vh")
+except getopt.GetoptError:
+    print DESCRIPTION
+    sys.exit(1)
+# process options
+for o, a in opts:
+    if o == "-p": partition=a
+    if o == "-J": name=a
+    if o == "-D": idir=a
+    if o == "-v": verbose=True
+    if o == "-h": print DESCRIPTION; sys.exit(0)
+# process args
+if (len(args)!=3):
+    print DESCRIPTION
+    sys.exit(1)
+hours = float(args[0])
+mins = int((hours-int(hours))*60)
+hours = int(hours)
+nodes = int(args[1])
+ppn = int(args[2])
+
+# prepare salloc command
+cmdstr = "salloc -J %s -p %s -D %s --exclusive" % (name,partition,idir)
+#print cmdstr
+resrc = "-t %d:%d:00 -N %d --ntasks-per-node %d -n %d" % (hours,mins,nodes,ppn,nodes*ppn)
+#print resrc
+cmd = "%s %s" % (cmdstr,resrc)
+if verbose: print "Submitting:\n  ", cmd
+
+# run system command
+os.system(cmd)
+
+# done
+print "See you later!"
+sys.exit(0)

@@ -1,0 +1,115 @@
+#!/usr/bin/env python2.7
+
+DESCRIPTION = '''
+Bqsub:
+    Python wrapper to run batch jobs
+
+SYNOPSIS
+    Bqsub [-p partition_name] [-J job_name] [-d init_dir] hours nodes ppn interpretter script script_args
+
+ARGUMENTS
+    hours : hours (float is OK)
+    nodes : 1 or more
+    ppn : processor cores per node
+    interpretter : interpreter executable, e.g. julia
+         currently supported: julia, bash, and exec
+    script : script to execute (absolute path or relative to current directory)
+    script_args : script command-line arguments
+
+OPTIONS
+    -p : partition name (dafaults to debug)
+    -D : initial directory (defaults to current)
+    -J : name the job (max 15 char, default is time-stamped "I%y%m%d-%H%M%S")
+
+EXAMPLE
+    Bqsub 1.5 2 2 julia example.jl # base syntax
+    Bqsub -d $HOME 1.5 2 2 julia example.jl # start session in home directory
+
+Note!
+    Output of the job (and wrapper script) are stored in $SCRATCHDIR/BqsubJobStorage
+
+'''
+
+# imports
+import sys
+import os
+import getopt
+import time
+import subprocess
+
+# defaults
+hours=1
+nodes=1
+ppn=1
+partition='debug'
+verbose=False
+idir=os.getcwd()
+name=time.strftime("B%y%m%d-%H%M%S")
+scrargs = []
+machopt = {
+    'julia':'--machinefile `julia_nodefile`',
+    'bash' :'',
+    'exec' :''
+    }
+
+
+# get options and arguments
+try:
+    opts, args = getopt.getopt(sys.argv[1:], "p:D:J:vh")
+except getopt.GetoptError:
+    print DESCRIPTION
+    sys.exit(1)
+# process options
+for o, a in opts:
+    if o == "-p": partition=a
+    if o == "-J": name=a
+    if o == "-D": idir=a
+    if o == "-v": verbose=True
+    if o == "-h": print DESCRIPTION; sys.exit(0)
+# process args
+if (len(args)<5):
+    print DESCRIPTION
+    sys.exit(1)
+hours = float(args[0])
+mins = int((hours-int(hours))*60)
+hours = int(hours)
+nodes = int(args[1])
+ppn = int(args[2])
+interp = args[3]
+script = os.path.join(idir,args[4])
+scrargs = ' '.join(args[5:])
+wrapper = 'none.sh'
+nproc = nodes*ppn
+if not machopt.has_key(interp) and nproc > 1:
+    print "Fatal error: unknow parallel mode for interpreter %s" % (interp)
+    sys.exit(1)
+if interp == 'exec': Interp = ' '
+else: Interp = subprocess.check_output(["which",interp]); Interp = Interp.strip()
+
+# prepare wrapper script
+jjs = "/apps/slurm_etc/logs"
+jjs = os.path.join(jjs,"BqsubJobStorage")
+if not os.path.isdir(jjs): os.mkdir(jjs)
+wrapper=os.path.join(jjs,name+".sh")
+output=os.path.join(jjs,name+".log")
+fpt=open(wrapper,'w')
+fpt.write("#!/bin/bash -l"+'\n')
+fpt.write("echo Executing in `pwd`"+'\n')
+if nproc > 1: fpt.write(' '.join([Interp,machopt[interp],script,scrargs])+'\n')
+else: fpt.write(' '.join([Interp,script,scrargs])+'\n')
+fpt.close()
+
+# prepare qsub command
+cmdstr = "sbatch -J %s -p %s -D %s -o %s --exclusive" % (name,partition,idir,output)
+#print cmdstr
+resrc = "-t %d:%d:00 -N %d --ntasks-per-node %d -n %d" % (hours,mins,nodes,ppn,nodes*ppn)
+#print resrc
+cmd = "%s %s %s" % (cmdstr,resrc,wrapper)
+if verbose: print "Submitting:\n  ", cmd
+
+# run system command
+os.system(cmd)
+
+# done
+print "Submitted! Check %s* in %s for output." % (name,jjs)
+sys.exit(0)
