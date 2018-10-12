@@ -1,0 +1,19 @@
+#!/bin/sh
+julia=`which julia 2>/dev/null`
+
+if [ -z "$julia" ]; then
+	echo Fatal error: julia executable not found!
+	exit 1
+fi
+
+if [ -z "$SLURM_NODELIST" ]; then
+	echo Fatal error: SLURM_NODELIST not found
+	echo '...' you have to run julia_compute on the compute node via SLURM
+	exit 1
+fi
+
+machinefile=`julia_nodefile_local` || exit 1
+#echo $julia --machinefile $machinefile "$@"
+#srun -N 1 -n 1 --pty $julia --machinefile $machinefile "$@"
+$julia --machinefile $machinefile "$@"
+rm -f $machinefile

@@ -1,0 +1,79 @@
+#!/usr/bin/env python2.7
+
+# imports
+import sys
+import os
+import subprocess
+
+# defaults
+#master = subprocess.check_output(["hostname","-s"]); master = master.strip()
+#print master
+
+# environment check
+nodes = os.getenv("SLURM_NODELIST",[])
+if len(nodes) < 1:
+    print "Fatal error: SLURM_NODELIST environemnt does not exist"
+    print "             use salloc first to allocate nodes"
+    sys.exit(1)
+tmpdir = "/apps/slurm_etc/tmp"
+tmpdir = os.path.join(tmpdir,os.getenv("USER"))
+if not os.path.isdir(tmpdir): os.mkdir(tmpdir)
+
+# get short nodelist
+NodeList=subprocess.check_output(["scontrol","show","hostname"])
+NodeList=NodeList.strip()
+NodeList=NodeList.split('\n')
+assert len(NodeList)==int(os.getenv("SLURM_NNODES"))
+#print NodeList
+
+# get tasks per node
+TasksPerNode=os.getenv("SLURM_TASKS_PER_NODE")
+TasksPerNode=TasksPerNode.split(',')
+#print TasksPerNode
+taskspernode=[]
+for elm in TasksPerNode:
+    elm=elm.strip(')')
+    elm=elm.split('(x')
+    if len(elm)==1:
+        taskspernode.append(int(elm[0]))
+    elif len(elm)==2:
+        wpns=int(elm[1])*[int(elm[0])]
+        for wpn in wpns: taskspernode.append(wpn)
+    else:
+        print "something wrong with TaskPerNode section"
+        sys.exit(1)
+assert len(taskspernode)==len(NodeList)
+#print taskspernode
+
+# get long nodelist (host per worker)
+nodelist=[]
+for i in xrange(len(NodeList)):
+    cpns=taskspernode[i]*[NodeList[i]]
+    for cpn in cpns: nodelist.append(cpn)
+assert len(nodelist)==int(os.getenv("SLURM_NTASKS"))
+#nodelist=nodelist[1:]
+
+# write Julia machinefile
+sav_stderr=sys.stderr
+my_stderr=open('/dev/null','w')
+sys.stderr=my_stderr
+outfile = os.tempnam(tmpdir,'jlmf_')
+sys.stderr=sav_stderr
+my_stderr.close()
+# remove master node
+#idx = nodes.index(master)
+#del nodes[idx]
+#print nodes
+# create julia nodes
+jnodes = ('\n').join(nodelist)
+jnodes = jnodes+'\n'
+#print jnodes
+
+# write output to file
+fpt = open(outfile,"w")
+fpt.write(jnodes)
+fpt.close()
+print outfile
+
+# done
+sys.exit(0)
